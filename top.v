@@ -9,11 +9,11 @@ module top#(parameter CLK_freq=100000000,parameter BaudRate=9600)(
     input uart_rx_wire,
     output uart_tx_wire,
     output twobytes_done,
-    output [3:0]data_nibble1_out,
-    output [3:0]data_nibble2_out,
+    output reg [3:0]data_nibble1_out,
+    output reg [3:0]data_nibble2_out,
     output twobytes_received,
-    output doubleerror1,
-    output doubleerror2
+    output reg doubleerror1,
+    output reg doubleerror2
     );
     wire tickx16;
     //tx
@@ -26,6 +26,8 @@ module top#(parameter CLK_freq=100000000,parameter BaudRate=9600)(
     wire rx_done;
     wire [7:0]rx_firstbyte,rx_secondbyte;
     wire [7:0]codeword1_received,codeword2_received;
+    wire [3:0]dec1_out,dec2_out;
+    wire dec1_de,dec2_de;
 
     baud_counter #(
         .CLK_freq(CLK_freq),
@@ -101,8 +103,8 @@ module top#(parameter CLK_freq=100000000,parameter BaudRate=9600)(
         .S(),
         .paritycheck(),
         .Ecorrected(),
-        .Dout(data_nibble1_out),
-        .doubleerror(doubleerror1)
+        .Dout(dec1_out),
+        .doubleerror(dec1_de)
     );
 
     SECDED_Decoder dec2 (
@@ -110,9 +112,23 @@ module top#(parameter CLK_freq=100000000,parameter BaudRate=9600)(
         .S(),
         .paritycheck(),
         .Ecorrected(),
-        .Dout(data_nibble2_out),
-        .doubleerror(doubleerror2)
+        .Dout(dec2_out),
+        .doubleerror(dec2_de)
     );
 
-endmodule
+    // latch decoded outputs and flags only when both bytes have arrived
+    always @(posedge clk) begin
+        if (reset) begin
+            data_nibble1_out <= 4'b0000;
+            data_nibble2_out <= 4'b0000;
+            doubleerror1 <= 1'b0;
+            doubleerror2 <= 1'b0;
+        end else if (twobytes_received) begin
+            data_nibble1_out <= dec1_out;
+            data_nibble2_out <= dec2_out;
+            doubleerror1 <= dec1_de;
+            doubleerror2 <= dec2_de;
+        end
+    end
 
+endmodule
